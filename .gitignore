@@ -1,0 +1,6 @@
+# ignore all logs
+*.log
+*.pyc
+/.venv
+**/__pycache__/
+/Logs
