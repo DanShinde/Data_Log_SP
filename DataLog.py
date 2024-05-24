@@ -44,6 +44,7 @@ def readConfig():
         host =  config_data["serverIP"]
         port = int(config_data["Port"])
         connectionKey = config_data["connectionkey"]
+
     except: 
         config_data = {
                     "serverIP": "192.168.0.1",
@@ -54,6 +55,7 @@ def readConfig():
 
         with open("config.json", "w") as outfile:
             outfile.write(json_object)
+
 
 
 PendingAlarms = []

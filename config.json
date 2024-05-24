@@ -1,5 +1,5 @@
 {
-    "serverIP": "localhost",
-    "Port": 2001,
+    "serverIP": "192.168.2.25",
+    "Port": 4000,
     "connectionkey": "Connected"
 }
