@@ -2,6 +2,7 @@ from datetime import datetime
 import json
 import logging
 import os
+import sqlite3
 
 
 def readConfig():
@@ -55,7 +56,8 @@ def updateAlarmOutTime(filename, search_string, column_to_update, new_value):
 
 def timestamping(instring):
     Dtime = instring[13:36]
-    return Dtime
+    alarm_status = instring[12]
+    return Dtime, alarm_status
 
 def processString(instring):
     categroy = instring[2]
@@ -86,3 +88,113 @@ def processString(instring):
     toLog =', '.join([categroy, sub_category, group_no, zone_no, module_no,  msg])
     print(toLog)
     return(alaram_status ,toLog, ddatetime)
+
+
+
+def create_table():
+    # Prompt for table name and database name
+    table_name = 'AlarmTable' #input("Enter table name: ")
+    database_name = 'DataLogger.db' #input("Enter database name: ")
+
+    # Check if the database file already exists
+    if not os.path.exists(database_name):
+        # Create the database file if it doesn't exist
+        open(database_name, 'a').close()
+        print("Database created successfully.")
+    else:
+        # print("Database already exists.")
+        pass
+
+    try:
+        # Connect to the SQLite database
+        conn = sqlite3.connect(database_name)
+        cur = conn.cursor()
+
+        # Check if the table already exists
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table_name,))
+        table_exists = cur.fetchone()
+        if table_exists:
+            # print("Table already exists.")
+            return
+
+        # Create a table with the specified name and schema
+        cur.execute(f'''CREATE TABLE {table_name} (
+                        id INTEGER PRIMARY KEY,
+                        
+                        InTimestamp DATE,
+                        OutTimestamp DATE,
+                        Duration DATE GENERATED ALWAYS AS ((strftime('%s', OutTimestamp) - strftime('%s', InTimestamp)) / 60),
+                        Category TEXT,
+                        SubCategory TEXT,
+                        GroupNo TEXT,
+                        ZoneNo TEXT,
+                        ModuleNo TEXT,
+                        Alarm TEXT,
+                        MsgKey TEXT,
+                        AlarmState TEXT
+                        
+                    )''')
+        conn.commit()
+        print("Table created successfully.")
+    except sqlite3.Error as e:
+        print("Error creating table:", e)
+    finally:
+        # Close the connection
+        # print('DB Conn Closed')
+        conn.close()
+
+
+def insert_data_into_table(data_input: str):
+    try:
+        # Split the input string by commas and create a list
+        data_values = data_input.split(',')
+        # Insert data into the table
+        print(data_values)
+        # Connect to the SQLite database
+        conn = sqlite3.connect('DataLogger.db')
+        cur = conn.cursor()
+        cur.execute(f'''INSERT INTO AlarmTable 
+                       ( InTimestamp, OutTimestamp,  Category, SubCategory, 
+                        GroupNo, ZoneNo, ModuleNo, Alarm, MsgKey, AlarmState) 
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''', data_values)
+        print(cur.fetchall())
+        # Commit the transaction
+        conn.commit()
+
+        print("Values Inserted successfully.")
+
+    except sqlite3.Error as e:
+        print("Error inserting values:", e)
+
+    finally:
+        # Close the connection
+        print('Insert Conn Closed')
+        conn.close()
+
+
+def update_out_time(data_input: str):
+    try:
+        # Split the input string by commas and create a list
+        data_values = data_input.split(',')
+        # Insert data into the table
+        print(data_values)
+        # Connect to the SQLite database
+        conn = sqlite3.connect('DataLogger.db')
+        cur = conn.cursor()
+        cur.execute(
+            ''' UPDATE AlarmTable SET OutTimestamp = ?, AlarmState = ? WHERE MsgKey = ?; ''',
+            data_values,
+        )
+        print(cur.fetchall())
+        # Commit the transaction
+        conn.commit()
+
+        print("Values Inserted successfully.")
+
+    except sqlite3.Error as e:
+        print("Error inserting values:", e)
+
+    finally:
+        # Close the connection
+        print('Insert Conn Closed')
+        conn.close()

@@ -6,13 +6,14 @@ import threading
 import time
 from PyQt5.QtWidgets import QApplication, QMainWindow, QTableWidget, QSizePolicy, QTableWidgetItem, QVBoxLayout, QHBoxLayout, QLabel, QWidget, QHeaderView, QLineEdit, QPushButton, QRadioButton, QMessageBox, QSpacerItem, QDateTimeEdit
 from PyQt5.QtCore import Qt, QTimer, QDateTime
-from PyQt5.QtGui import QFont
+from PyQt5.QtGui import QFont, QColor
 import sqlite3
-from funs import readConfig, configure_logging, processString, timestamping, updateAlarmOutTime
+from funs import readConfig, configure_logging, processString, timestamping, updateAlarmOutTime, create_table, insert_data_into_table, update_out_time
 
  
 # Set up logger
 logger, log_file_path = configure_logging()
+create_table()
 
 class MainWindow(QMainWindow):
     
@@ -20,6 +21,8 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.tcp_process_queue = tcp_process_queue
         self.control_queue = control_queue
+        self.control_queue['status'] = 'nothing'
+        self.control_queue['para'] =  ('192.168.2.25', 4000, 'connected')
         self.tcp_process = tcp_process
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.check_for_updates)
@@ -159,6 +162,7 @@ class MainWindow(QMainWindow):
         self.connectButton.setStyleSheet("background-color: lightgreen;")
         self.disconnectButton.setStyleSheet("background-color: lightcoral;")
         self.ExportButton.setStyleSheet("background-color: lightsalmon;")
+        self.update_table()
         self.show()
 
     def start_tcp_client(self):
@@ -179,14 +183,19 @@ class MainWindow(QMainWindow):
         #self.statusLabel.setText('Status: Disconnected')
 
     def check_for_updates(self):
-        if not self.tcp_process_queue.empty():
-            data = self.tcp_process_queue.get()
-            if data == 'Status: Connected':
-                self.connectButton.setEnabled(False)
-                self.disconnectButton.setEnabled(True)
-            if data == 'Status: Disconnected':
-                self.connectButton.setEnabled(True)
-                self.disconnectButton.setEnabled(False)
+        if self.tcp_process_queue.empty():
+            return
+        data = self.tcp_process_queue.get()
+        print(data)
+        if data == 'Status: Connected':
+            self.connectButton.setEnabled(False)
+            self.disconnectButton.setEnabled(True)
+        if data == 'Status: Disconnected':
+            self.connectButton.setEnabled(True)
+            self.disconnectButton.setEnabled(False)
+        if data == 'update_table':
+            self.update_table()
+            print('table_updatedout')
 
             # print('tcp status received :', data)
             # Update the GUI based on the received data
@@ -237,12 +246,22 @@ class MainWindow(QMainWindow):
             cur = conn.cursor()
 
             # Execute the query to select all entries
-            cur.execute("SELECT ID, Info,  InTimestamp, OutTimestamp, Duration, Category, SubCategory, GroupNo, ZoneNo, ModuleNo, AlarmState,Alarm  FROM DataLogger")
-
+            cur.execute("""SELECT InTimestamp,
+                        OutTimestamp ,
+                        Duration ,
+                        Category ,
+                        SubCategory ,
+                        GroupNo ,
+                        ZoneNo ,
+                        ModuleNo ,
+                        AlarmState ,
+                 
+                        Alarm FROM AlarmTable""")
             # Fetch all the selected rows
             rows = cur.fetchall()
 
             # Return the selected rows
+            # print(rows)
             return rows
 
         except sqlite3.Error as e:
@@ -260,8 +279,16 @@ class MainWindow(QMainWindow):
             cur = conn.cursor()
 
             # Execute the query to select the last n entries
-            cur.execute("SELECT ID, Info,  InTimestamp, OutTimestamp, Duration, Category, SubCategory, GroupNo, ZoneNo, ModuleNo, AlarmState,Alarm  FROM DataLogger ORDER BY id DESC LIMIT ?", (n,))
-
+            cur.execute("""SELECT InTimestamp,
+                        OutTimestamp ,
+                        Duration ,
+                        Category ,
+                        SubCategory ,
+                        GroupNo ,
+                        ZoneNo ,
+                        ModuleNo ,
+                        AlarmState ,
+                        Alarm FROM AlarmTable""")
             # Fetch all the selected rows
             rows = cur.fetchall()
 
@@ -282,17 +309,26 @@ class MainWindow(QMainWindow):
         self.tableWidget.setColumnCount(len(rows[0]))
 
         # Set the table headers
-        headers = ['ID','Info', 'InTimestamp','OutTimestamp','Duration', 'Category','SubCategory','GroupNo','ZoneNo','ModuleNo','AlarmState','Alarm Description']  # Replace with actual column names
+        headers = ['InTimestamp','OutTimestamp','Duration', 'Category','SubCategory','GroupNo','ZoneNo','ModuleNo','AlarmState','Alarm Description']  # Replace with actual column names
         self.tableWidget.setHorizontalHeaderLabels(headers)
 
         # Insert data into the table
         for i, row in enumerate(rows):
+            print(type(row))
+            if row[3] == 'Error':
+                color = QColor(255,100,100)
+            if row[3] == 'Status':
+                color = QColor(125,125,125)
+
             for j, value in enumerate(row):
                 item = QTableWidgetItem(str(value))
+                item.setBackground(color)
+
                 self.tableWidget.setItem(i, j, item)
+                # print(i,j,value)
                 # Align text in columns 1, 7, 8, and 9 to the center
-                if j in [0, 4, 7, 8, 9, 10]:
-                    item.setTextAlignment(Qt.AlignCenter)
+                # if j in [0, 4, 7, 8, 9, 10]:
+                item.setTextAlignment(Qt.AlignCenter)
 
         # Resize the columns to fit the contents
 
@@ -305,8 +341,11 @@ class MainWindow(QMainWindow):
         
         # Resize the columns to fit the contents
         column_widths = [40, 100, 150, 150, 100, 100,90, 70, 70, 70, 70, 315]  # Example widths for each column
-        for i in range(self.tableWidget.columnCount()):
-            self.tableWidget.setColumnWidth(i, column_widths[i])
+        # for i in range(self.tableWidget.columnCount()):
+        #     self.tableWidget.setColumnWidth(i, column_widths[i])
+        self.tableWidget.resizeColumnsToContents()
+        self.tableWidget.resetHorizontalScrollMode()
+
     def connect_function(self):
         # Implement your connect function here
         pass
@@ -322,7 +361,7 @@ class MainWindow(QMainWindow):
             cur = conn.cursor()
 
             # Execute the query to select rows within the specified date range
-            cur.execute("SELECT * FROM DataLogger WHERE InTimestamp BETWEEN ? AND ?", (start_date, end_date))
+            cur.execute("SELECT * FROM AlarmTable WHERE InTimestamp BETWEEN ? AND ?", (start_date, end_date))
 
             # Fetch all the selected rows
             rows = cur.fetchall()
@@ -330,7 +369,7 @@ class MainWindow(QMainWindow):
             # Export the data
             with open('exported_data.csv', 'w') as f:
                 # Write headers
-                headers = ['ID','Info', 'InTimestamp','OutTimestamp','Duration', 'Category','SubCategory','GroupNo','ZoneNo','ModuleNo','Alarm','AlarmState']
+                headers = ['InTimestamp','OutTimestamp','Duration', 'Category','SubCategory','GroupNo','ZoneNo','ModuleNo','Alarm','AlarmState']
                 f.write(','.join(headers) + '\n')
 
                 # Write rows
@@ -346,33 +385,36 @@ class MainWindow(QMainWindow):
             # Close the connection
             conn.close()
 
-async def receive_data(client_socket):
-    loop = asyncio.get_event_loop()
-    data = await loop.sock_recv(client_socket, 1024)
-    return data.decode()
+# async def receive_data(client_socket):
+#     loop = asyncio.get_event_loop()
+#     data = await loop.sock_recv(client_socket, 1024)
+#     return data.decode()
 
-def receive_data(client_socket, PendingAlarms):
+def receive_data(client_socket, PendingAlarms, tcp_process_queue):
     while True:
         try:
             received = client_socket.recv(1024).decode()
             toListID = received[:12] + received[42:-2]
+            tcp_process_queue.put('update_table')
             if not received:
                 break  # No more data, exit inner loop
             if toListID in PendingAlarms:
-                outTime = timestamping(received)
+                outTime, state = timestamping(received)
                 updateAlarmOutTime(log_file_path, toListID, 3, outTime)
-                print('Updated time')
+                update_out_time(','.join((outTime,state,toListID)))
+                # print('Updated time')
                 PendingAlarms.remove(toListID)
             else:
                 PendingAlarms.append(toListID)
                 try:
                     alarm_status, toLog, itime = processString(received)
-                    print('Adding Alarm')
+                    # print('Adding Alarm')
                     if alarm_status == 'P':
                         ilog = ','.join([itime, '', toLog, toListID])
                     else:
                         ilog = ','.join(['', itime, toLog, toListID])
                     logger.info(ilog)
+                    insert_data_into_table(ilog + ','+ alarm_status)
                 except:
                     pass
         except (socket.error, ConnectionResetError) as e:
@@ -389,7 +431,7 @@ def tcp_client(tcp_process_queue, control_queue):
     running = False
     PendingAlarms = []
 
-    print('CLietProcess')
+    # print('CLietProcess')
 
     while True:
         # print('start received')
@@ -410,7 +452,7 @@ def tcp_client(tcp_process_queue, control_queue):
                         running = True
                         tcp_process_queue.put('Status: Connected')
                         control_queue['status'] = 'nothing'
-                        receive_thread = threading.Thread(target=receive_data, args=(client_socket, PendingAlarms))
+                        receive_thread = threading.Thread(target=receive_data, args=(client_socket, PendingAlarms, tcp_process_queue))
                         receive_thread.start()
 
                     except (socket.error, socket.timeout) as e:

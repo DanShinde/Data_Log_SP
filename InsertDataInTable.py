@@ -1,7 +1,7 @@
 import sqlite3
 import datetime
 
-def insert_data_into_table():
+def insert_data_into_table(data_input):
     try:
         # Connect to the SQLite database
         conn = sqlite3.connect('DataLogger.db')
@@ -10,18 +10,18 @@ def insert_data_into_table():
         t1 = 'A'
 
         # Get user input for the data row as a single string separated by commas
-        data_input = input("Enter values for data_to_insert separated by commas: ")
+        # data_input = input("Enter values for data_to_insert separated by commas: ")
 
         # Split the input string by commas and create a list
         data_values = data_input.split(',')
 
         # Convert datetime strings to datetime objects
-        data_values[2] = datetime.datetime.strptime(data_values[2], '%Y-%m-%d %H:%M:%S')
+        #data_values[2] = datetime.datetime.strptime(data_values[2], '%Y-%m-%d %H:%M:%S')
         # data_values[3] = datetime.datetime.strptime(data_values[3], '%Y-%m-%d %H:%M:%S')
 
         # Insert data into the table
-        cur.execute('''INSERT INTO DataLogger 
-                       (Info,  InTimestamp, OutTimestamp, Duration, Category, SubCategory, 
+        cur.execute('''INSERT INTO AlarmTable 
+                       (InTimestamp, OutTimestamp, Category, SubCategory, 
                         GroupNo, ZoneNo, ModuleNo, Alarm, MsgKey, AlarmState) 
                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''', data_values[1:])
 
