@@ -323,8 +323,10 @@ class MainWindow(QMainWindow):
             for j, value in enumerate(row):
                 item = QTableWidgetItem(str(value))
                 item.setBackground(color)
+                item.setFlags(Qt.ItemIsEnabled)
 
                 self.tableWidget.setItem(i, j, item)
+                # self.tableWidget.columnWidth()
                 # print(i,j,value)
                 # Align text in columns 1, 7, 8, and 9 to the center
                 # if j in [0, 4, 7, 8, 9, 10]:
@@ -343,7 +345,8 @@ class MainWindow(QMainWindow):
         column_widths = [40, 100, 150, 150, 100, 100,90, 70, 70, 70, 70, 315]  # Example widths for each column
         # for i in range(self.tableWidget.columnCount()):
         #     self.tableWidget.setColumnWidth(i, column_widths[i])
-        self.tableWidget.resizeColumnsToContents()
+        for i in range(self.tableWidget.columnCount()):
+            self.tableWidget.resizeColumnToContents(i)
         self.tableWidget.resetHorizontalScrollMode()
 
     def connect_function(self):
